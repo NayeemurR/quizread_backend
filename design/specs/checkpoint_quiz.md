@@ -1,0 +1,34 @@
+concept CheckpointQuiz [User, Content]
+purpose generate and evaluate short multiple-choice quizzes to reinforce active reading
+principle after N pages, generate a quiz from the recent content and record user attempts
+
+state
+  a set of Quizzes with
+    an _id Id
+    a content String
+    a question String
+    a answers ArrayString  // length = 4
+    a correctIndex Number  // 0-based
+    a createdAt DateTime
+
+  a set of QuizAttempts with
+    an _id Id
+    a userId Id
+    a quizId Id
+    a selectedIndex Number
+    a isCorrect Boolean
+    a createdAt DateTime
+
+actions
+  createQuiz (content: String) : (quizId: Id)
+    effect calls **Gemini** with `content` to produce a single MCQ (question, 4 answers, correct index)
+           then persists Quizzes and returns quizId
+
+  submitQuizAnswer (userId: Id, quizId: Id, selectedIndex: Number) : (attemptId: Id, isCorrect: Boolean)
+    requires quiz exists; 0 <= selectedIndex < 4
+    effect stores QuizAttempt and returns correctness
+
+notes
+  - **LLM provider**: Implementation uses Google **Gemini** (model from `GEMINI_MODEL`).
+  - **Testability**: Provide an injectable generator interface; in tests, use a **deterministic stub** to avoid API calls/cost.
+  - **Security**: Sanitize/limit `content` length to control token usage.

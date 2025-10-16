@@ -1,0 +1,262 @@
+import { assertEquals, assertExists, assertNotEquals } from "jsr:@std/assert";
+import { testDb } from "@utils/database.ts";
+import { ID } from "@utils/types.ts";
+import AnnotateConcept from "@concepts/annotate.ts";
+
+const userA = "user:Alice" as ID;
+const userB = "user:Bob" as ID;
+
+Deno.test("Principle: User saves annotation with key ideas, system persists and retrieves it", async () => {
+  const [db, client] = await testDb();
+  const annotateConcept = new AnnotateConcept(db);
+
+  try {
+    console.log("[OP] Starting operational principle test");
+
+    // 1. User saves an annotation with key ideas
+    const content = "This is a sample text about technology and innovation.";
+    const keyIdeas = "Key concepts: AI, machine learning, and automation";
+    console.log("[OP] Saving annotation with content:", content);
+    console.log("[OP] Key ideas:", keyIdeas);
+
+    const saveResult = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content,
+      keyIdeas,
+    });
+    assertNotEquals(
+      "error" in saveResult,
+      true,
+      "Annotation saving should not fail.",
+    );
+    const { annotationId } = saveResult as { annotationId: ID };
+    assertExists(annotationId);
+    console.log("[OP] Saved annotation with ID:", annotationId);
+
+    // 2. System can retrieve the annotation
+    const userAnnotations = await annotateConcept._getUserAnnotations({
+      userId: userA,
+      content,
+    });
+    assertEquals(
+      userAnnotations.length,
+      1,
+      "User should have one annotation for this content.",
+    );
+    assertEquals(userAnnotations[0]._id, annotationId);
+    assertEquals(userAnnotations[0].content, content);
+    assertEquals(userAnnotations[0].keyIdeas, keyIdeas);
+    assertEquals(userAnnotations[0].userId, userA);
+    console.log("[OP] Verified annotation was saved and retrieved correctly");
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: saveAnnotation requires non-empty keyIdeas", async () => {
+  const [db, client] = await testDb();
+  const annotateConcept = new AnnotateConcept(db);
+
+  try {
+    console.log("[VARIANT] Testing empty keyIdeas");
+
+    const emptyResult = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content: "Some content",
+      keyIdeas: "",
+    });
+    assertEquals(
+      "error" in emptyResult,
+      true,
+      "Saving annotation with empty keyIdeas should fail.",
+    );
+    console.log("[VARIANT] Empty keyIdeas correctly rejected");
+
+    const whitespaceResult = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content: "Some content",
+      keyIdeas: "   ",
+    });
+    assertEquals(
+      "error" in whitespaceResult,
+      true,
+      "Saving annotation with whitespace-only keyIdeas should fail.",
+    );
+    console.log("[VARIANT] Whitespace-only keyIdeas correctly rejected");
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: saveAnnotation allows multiple annotations for same content", async () => {
+  const [db, client] = await testDb();
+  const annotateConcept = new AnnotateConcept(db);
+
+  try {
+    console.log("[VARIANT] Testing multiple annotations for same content");
+
+    const content = "Sample content for multiple annotations";
+    const keyIdeas1 = "First key idea: important concept";
+    const keyIdeas2 = "Second key idea: another important concept";
+
+    // Save first annotation
+    const result1 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content,
+      keyIdeas: keyIdeas1,
+    });
+    assertNotEquals(
+      "error" in result1,
+      true,
+      "First annotation should save successfully.",
+    );
+    const { annotationId: id1 } = result1 as { annotationId: ID };
+    console.log("[VARIANT] First annotation saved with ID:", id1);
+
+    // Wait a bit to ensure different timestamps
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // Save second annotation
+    const result2 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content,
+      keyIdeas: keyIdeas2,
+    });
+    assertNotEquals(
+      "error" in result2,
+      true,
+      "Second annotation should save successfully.",
+    );
+    const { annotationId: id2 } = result2 as { annotationId: ID };
+    console.log("[VARIANT] Second annotation saved with ID:", id2);
+
+    // Verify both annotations exist
+    const userAnnotations = await annotateConcept._getUserAnnotations({
+      userId: userA,
+      content,
+    });
+    assertEquals(
+      userAnnotations.length,
+      2,
+      "User should have two annotations for this content.",
+    );
+    assertEquals(userAnnotations[0]._id, id2); // Newer first due to sort
+    assertEquals(userAnnotations[1]._id, id1);
+    console.log("[VARIANT] Both annotations retrieved correctly");
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: saveAnnotation isolates annotations by user", async () => {
+  const [db, client] = await testDb();
+  const annotateConcept = new AnnotateConcept(db);
+
+  try {
+    console.log("[VARIANT] Testing user isolation");
+
+    const content = "Shared content between users";
+    const keyIdeasA = "Alice's key ideas about this content";
+    const keyIdeasB = "Bob's key ideas about this content";
+
+    // Save annotation for userA
+    const resultA = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content,
+      keyIdeas: keyIdeasA,
+    });
+    assertNotEquals(
+      "error" in resultA,
+      true,
+      "UserA annotation should save successfully.",
+    );
+    const { annotationId: idA } = resultA as { annotationId: ID };
+    console.log("[VARIANT] UserA annotation saved with ID:", idA);
+
+    // Save annotation for userB
+    const resultB = await annotateConcept.saveAnnotation({
+      userId: userB,
+      content,
+      keyIdeas: keyIdeasB,
+    });
+    assertNotEquals(
+      "error" in resultB,
+      true,
+      "UserB annotation should save successfully.",
+    );
+    const { annotationId: idB } = resultB as { annotationId: ID };
+    console.log("[VARIANT] UserB annotation saved with ID:", idB);
+
+    // Verify user isolation
+    const userAAnnotations = await annotateConcept._getUserAnnotations({
+      userId: userA,
+      content,
+    });
+    assertEquals(
+      userAAnnotations.length,
+      1,
+      "UserA should have one annotation.",
+    );
+    assertEquals(userAAnnotations[0]._id, idA);
+    assertEquals(userAAnnotations[0].keyIdeas, keyIdeasA);
+
+    const userBAnnotations = await annotateConcept._getUserAnnotations({
+      userId: userB,
+      content,
+    });
+    assertEquals(
+      userBAnnotations.length,
+      1,
+      "UserB should have one annotation.",
+    );
+    assertEquals(userBAnnotations[0]._id, idB);
+    assertEquals(userBAnnotations[0].keyIdeas, keyIdeasB);
+    console.log("[VARIANT] User isolation verified correctly");
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Query: _getAllUserAnnotations retrieves all annotations by user", async () => {
+  const [db, client] = await testDb();
+  const annotateConcept = new AnnotateConcept(db);
+
+  try {
+    console.log("[VARIANT] Testing retrieval of all user annotations");
+
+    const content1 = "First content piece";
+    const content2 = "Second content piece";
+    const keyIdeas1 = "Key ideas for first content";
+    const keyIdeas2 = "Key ideas for second content";
+
+    // Save annotations for different content
+    const result1 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content: content1,
+      keyIdeas: keyIdeas1,
+    });
+    const { annotationId: id1 } = result1 as { annotationId: ID };
+
+    const result2 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      content: content2,
+      keyIdeas: keyIdeas2,
+    });
+    const { annotationId: id2 } = result2 as { annotationId: ID };
+
+    // Retrieve all annotations for userA
+    const allAnnotations = await annotateConcept._getAllUserAnnotations({
+      userId: userA,
+    });
+    assertEquals(
+      allAnnotations.length,
+      2,
+      "UserA should have two annotations total.",
+    );
+    assertEquals(allAnnotations[0]._id, id2); // Newer first due to sort
+    assertEquals(allAnnotations[1]._id, id1);
+    console.log("[VARIANT] All user annotations retrieved correctly");
+  } finally {
+    await client.close();
+  }
+});

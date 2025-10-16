@@ -1,9 +1,12 @@
 {
-    "imports": {
-        "@concepts/": "./src/concepts/",
-        "@utils/": "./src/utils/"
-    },
-    "tasks": {
-        "concepts": "deno run --allow-net --allow-read --allow-sys --allow-env src/concept_server.ts --port 8000 --baseUrl /api"
-    }
+  "imports": {
+    "@concepts/": "./src/concepts/",
+    "@google/generative-ai": "npm:@google/generative-ai@^0.24.1",
+    "@utils/": "./src/utils/",
+    "mongodb": "npm:mongodb@^6.3.0",
+    "jsr:@std/assert": "jsr:@std/assert@^0.223.0"
+  },
+  "tasks": {
+    "concepts": "deno run --allow-net --allow-read --allow-sys --allow-env src/concept_server.ts --port 8000 --baseUrl /api"
+  }
 }
