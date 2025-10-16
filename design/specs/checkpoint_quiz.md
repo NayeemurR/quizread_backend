@@ -1,3 +1,5 @@
+# CheckpointQuiz Concept
+
 concept CheckpointQuiz [User, Content]
 purpose generate and evaluate short multiple-choice quizzes to reinforce active reading
 principle after N pages, generate a quiz from the recent content and record user attempts

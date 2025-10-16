@@ -1,0 +1,18 @@
+# Concept Design Changes
+
+## Summary of Changes Made
+
+### CheckpointQuiz
+
+One design change I made here was instead of storing the quiz's answer as a string, I instead store the index of the correct answer. This is because it makes it easier to validate the answer and it's more efficient to store. I also specify that the answers array should be of length 4.
+
+I also made sure to call the Gemini API to generate the quiz. I use the Gemini LLM class to call the API and return the result as a string. I then extract the JSON from the result and parse it into a JSON object. I then validate the JSON object and return the quizId.
+
+### Annotate
+
+I decided to not implement the promptAnnotation action. This is because I feel as if this is a more frontend related action that can be handled with a sync. Since this assignment is for the backend, I decided to not implement it.
+
+### FocusTimer
+
+I listened to the feedback given on my assignment 2 and drastically reduced the complexity of the timer. I was told that FocusTimer is a good general concept, but the actual implementation was way too app-specific. All a timer needs to know is the start time and countdown. It doesn't need to know the user, the book, or the pages. That stuff can be taken care of in a sync.
+

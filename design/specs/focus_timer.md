@@ -1,3 +1,5 @@
+# FocusTimer Concept
+
 concept FocusTimer []
 purpose generic countdown timer with phases
 principle when a running timer expires, it flips phase and resets

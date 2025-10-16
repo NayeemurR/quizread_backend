@@ -1,3 +1,5 @@
+# Annotate Concept
+
 concept Annotate [User, Content]
 purpose persist reader reflections to encourage active reading
 principle prompt users periodically to jot key ideas; store and retrieve annotations

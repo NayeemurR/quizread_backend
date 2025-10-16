@@ -1,3 +1,5 @@
+# Library Concept
+
 concept Library [User, Book]
 purpose store metadata about books a user owns/reads with links to Google Cloud storage
 principle users can add, list, get, and remove their books; books are stored as PDFs in Google Cloud

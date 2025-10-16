@@ -1,3 +1,5 @@
+# ReadingProgress Concept
+
 concept ReadingProgress [User, Book]
 purpose track reading state and compute engagement triggers
 principle as user advances pages, the concept decides when to trigger quiz/annotation (booleans only)

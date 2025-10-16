@@ -1,3 +1,5 @@
+# UserAuthentication Concept
+
 concept UserAuthentication [User]
 purpose authenticate users
 principle users must register and log in before using personalized features
