@@ -8,6 +8,10 @@ One design change I made here was instead of storing the quiz's answer as a stri
 
 I also made sure to call the Gemini API to generate the quiz. I use the Gemini LLM class to call the API and return the result as a string. I then extract the JSON from the result and parse it into a JSON object. I then validate the JSON object and return the quizId.
 
+I added a getQuizContext action to the CheckpointQuiz concept. This is because I need to extract the text from the PDF to generate the quiz. I also added a createQuizFromPDF action to the CheckpointQuiz concept. This is because I need to create a quiz from the PDF content.
+
+I changed what gets returned from the createQuiz action. Instead of returning the quizId, I now return the full quiz object. This is because I need to return the quiz object to the frontend to display the quiz. It's easier to do it in one action than the frontend having to call two actions to get the quiz object.
+
 ### Annotate
 
 I decided to not implement the promptAnnotation action. This is because I feel as if this is a more frontend related action that can be handled with a sync. Since this assignment is for the backend, I decided to not implement it.

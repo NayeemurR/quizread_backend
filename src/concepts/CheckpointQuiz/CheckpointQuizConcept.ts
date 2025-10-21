@@ -2,6 +2,7 @@ import { Collection, Db } from "mongodb";
 import { ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
 import { GeminiLLM } from "@utils/gemini-llm.ts";
+import { extractTextFromPageRange } from "@utils/pdf-text-extractor.ts";
 
 // Collection prefix to ensure namespace separation
 const PREFIX = "CheckpointQuiz" + ".";
@@ -61,11 +62,11 @@ export default class CheckpointQuizConcept {
   /**
    * Action: Creates a new quiz from content using Gemini LLM.
    * @requires content must not be empty
-   * @effects A new quiz is created and its ID is returned
+   * @effects A new quiz is created and the full quiz object is returned
    */
   async createQuiz(
     { content }: { content: string },
-  ): Promise<{ quizId: Quiz } | { error: string }> {
+  ): Promise<{ quiz: QuizDoc } | { error: string }> {
     if (!content || content.trim().length === 0) {
       return { error: "Content text cannot be empty" };
     }
@@ -111,16 +112,18 @@ Content: ${sanitizedContent}`;
       }
 
       const quizId = freshID() as Quiz;
-      await this.quizzes.insertOne({
+      const quizDoc: QuizDoc = {
         _id: quizId,
         content: sanitizedContent,
         question: quizData.question,
         answers: quizData.answers,
         correctIndex: quizData.correctIndex,
         createdAt: new Date(),
-      });
+      };
 
-      return { quizId };
+      await this.quizzes.insertOne(quizDoc);
+
+      return { quiz: quizDoc };
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message
@@ -193,5 +196,113 @@ Content: ${sanitizedContent}`;
     { userId }: { userId: User },
   ): Promise<QuizAttemptDoc[]> {
     return await this.quizAttempts.find({ userId }).toArray();
+  }
+
+  /**
+   * Action: Extracts text content from a PDF for quiz generation.
+   * @requires bookId must exist and belong to userId
+   * @requires currentPage must be valid
+   * @effects Returns extracted text content from the specified page range
+   */
+  async getQuizContext(
+    {
+      userId,
+      bookId,
+      currentPage,
+      pageRange = 2,
+    }: {
+      userId: User;
+      bookId: ID; // LibraryBook ID
+      currentPage: number;
+      pageRange?: number;
+    },
+  ): Promise<{ content: string } | { error: string }> {
+    try {
+      // Get the book from the library to access the PDF file
+      const libraryCollection = this.db.collection("Library.books");
+      const book = await libraryCollection.findOne({ _id: bookId });
+
+      if (!book) {
+        return { error: "Book not found" };
+      }
+
+      if (book.ownerId !== userId) {
+        return { error: "Book does not belong to user" };
+      }
+
+      // Extract fileName from storageUrl
+      const storageUrl = book.storageUrl;
+      // storageUrl format: https://storage.googleapis.com/bucket-name/books/userId/filename.pdf
+      // We need to extract: books/userId/filename.pdf
+      const urlParts = storageUrl.split("/");
+      const bucketName = urlParts[3]; // Should be the bucket name
+      const fileName = urlParts.slice(4).join("/"); // Everything after bucket name
+
+      // Extract text from the specified page range
+      const result = await extractTextFromPageRange(
+        fileName,
+        currentPage,
+        pageRange,
+      );
+
+      if ("error" in result) {
+        return result;
+      }
+
+      // Limit content length to prevent LLM token limits
+      const content = result.text.slice(0, 2000);
+
+      return { content };
+    } catch (error) {
+      console.error("Error getting quiz context:", error);
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error);
+      return { error: `Failed to get quiz context: ${errorMessage}` };
+    }
+  }
+
+  /**
+   * Action: Creates a quiz from PDF content at a specific page.
+   * @requires bookId must exist and belong to userId
+   * @requires currentPage must be valid
+   * @effects A new quiz is created from PDF content and the full quiz object is returned
+   */
+  async createQuizFromPDF(
+    {
+      userId,
+      bookId,
+      currentPage,
+      pageRange = 2,
+    }: {
+      userId: User;
+      bookId: ID; // LibraryBook ID
+      currentPage: number;
+      pageRange?: number;
+    },
+  ): Promise<{ quiz: QuizDoc } | { error: string }> {
+    console.log(
+      "Creating quiz from PDF...",
+      userId,
+      bookId,
+      currentPage,
+      pageRange,
+    );
+    // First, get the context from the PDF
+    const contextResult = await this.getQuizContext({
+      userId,
+      bookId,
+      currentPage,
+      pageRange,
+    });
+
+    console.log("Context result:", contextResult);
+
+    if ("error" in contextResult) {
+      return contextResult;
+    }
+
+    // Then create the quiz using the extracted content
+    return await this.createQuiz({ content: contextResult.content });
   }
 }
