@@ -1,0 +1,212 @@
+---
+timestamp: 'Mon Oct 20 2025 17:43:16 GMT-0400 (Eastern Daylight Time)'
+parent: '[[../20251020_174316.ec5a3239.md]]'
+content_id: 2f7ffa7d96397af0277b17326aee143c8c446a55ba8fd710ce0961b2cb556ca4
+---
+
+# file: src/concepts/checkpoint\_quiz.ts
+
+```typescript
+import { Collection, Db } from "mongodb";
+import { ID } from "@utils/types.ts";
+import { freshID } from "@utils/database.ts";
+import { GeminiLLM } from "@utils/gemini-llm.ts";
+
+// Collection prefix to ensure namespace separation
+const PREFIX = "CheckpointQuiz" + ".";
+
+// Generic types for the concept's external dependencies
+type User = ID;
+
+// Internal entity types, represented as IDs
+type Quiz = ID;
+type QuizAttempt = ID;
+
+/**
+ * State: A set of Quizzes with content, question, answers, and correct index.
+ */
+interface QuizDoc {
+  _id: Quiz;
+  content: string;
+  question: string;
+  answers: string[]; // length = 4
+  correctIndex: number; // 0-based
+  createdAt: Date;
+}
+
+/**
+ * State: A set of QuizAttempts with user, quiz, selected answer, and correctness.
+ */
+interface QuizAttemptDoc {
+  _id: QuizAttempt;
+  userId: User;
+  quizId: Quiz;
+  selectedIndex: number;
+  isCorrect: boolean;
+  createdAt: Date;
+}
+
+/**
+ * @concept CheckpointQuiz
+ * @purpose Generate and evaluate short multiple-choice quizzes to reinforce active reading
+ */
+export default class CheckpointQuizConcept {
+  quizzes: Collection<QuizDoc>;
+  quizAttempts: Collection<QuizAttemptDoc>;
+  private llm: GeminiLLM;
+
+  constructor(private readonly db: Db) {
+    this.quizzes = this.db.collection(PREFIX + "quizzes");
+    this.quizAttempts = this.db.collection(PREFIX + "quizAttempts");
+
+    // Initialize Gemini LLM
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is required");
+    }
+    this.llm = new GeminiLLM({ apiKey });
+  }
+
+  /**
+   * Action: Creates a new quiz from content using Gemini LLM.
+   * @requires content must not be empty
+   * @effects A new quiz is created and its ID is returned
+   */
+  async createQuiz(
+    { content }: { content: string },
+  ): Promise<{ quizId: Quiz } | { error: string }> {
+    if (!content || content.trim().length === 0) {
+      return { error: "Content text cannot be empty" };
+    }
+
+    // Sanitize and limit content length
+    const sanitizedContent = content.slice(0, 2000);
+
+    const prompt =
+      `Generate a multiple-choice quiz question based on this content. 
+Return a JSON object with:
+- "question": A clear, concise question
+- "answers": An array of exactly 4 answer options
+- "correctIndex": The 0-based index of the correct answer
+
+Content: ${sanitizedContent}`;
+
+    try {
+      const response = await this.llm.executeLLM(prompt);
+
+      // Extract JSON from the response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return { error: "No valid JSON found in LLM response" };
+      }
+
+      const quizData = JSON.parse(jsonMatch[0]);
+
+      // Validate the response structure
+      if (!quizData.question) {
+        return { error: "Question is required" };
+      }
+      if (!Array.isArray(quizData.answers)) {
+        return { error: "Answers must be an array" };
+      }
+      if (quizData.answers.length !== 4) {
+        return { error: "Exactly 4 answers are required" };
+      }
+      if (typeof quizData.correctIndex !== "number") {
+        return { error: "Correct index must be a number" };
+      }
+      if (quizData.correctIndex < 0 || quizData.correctIndex >= 4) {
+        return { error: "Correct index must be between 0 and 3" };
+      }
+
+      const quizId = freshID() as Quiz;
+      await this.quizzes.insertOne({
+        _id: quizId,
+        content: sanitizedContent,
+        question: quizData.question,
+        answers: quizData.answers,
+        correctIndex: quizData.correctIndex,
+        createdAt: new Date(),
+      });
+
+      return { quizId };
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error);
+      return { error: `Failed to generate quiz: ${errorMessage}` };
+    }
+  }
+
+  /**
+   * Action: Submits a quiz answer and records the attempt.
+   * @requires The quiz must exist
+   * @requires selectedIndex must be between 0 and 3
+   * @effects A new quiz attempt is recorded and correctness is returned
+   */
+  async submitQuizAnswer(
+    { userId, quizId, selectedIndex }: {
+      userId: User;
+      quizId: Quiz;
+      selectedIndex: number;
+    },
+  ): Promise<
+    { attemptId: QuizAttempt; isCorrect: boolean } | { error: string }
+  > {
+    const quiz = await this.quizzes.findOne({ _id: quizId });
+    if (!quiz) {
+      return { error: "Quiz not found" };
+    }
+
+    if (selectedIndex < 0 || selectedIndex >= 4) {
+      return { error: "Selected index must be between 0 and 3" };
+    }
+
+    const isCorrect = selectedIndex === quiz.correctIndex;
+    const attemptId = freshID() as QuizAttempt;
+
+    await this.quizAttempts.insertOne({
+      _id: attemptId,
+      userId,
+      quizId,
+      selectedIndex,
+      isCorrect,
+      createdAt: new Date(),
+    });
+
+    return { attemptId, isCorrect };
+  }
+
+  /**
+   * Query: Retrieves a quiz by its ID.
+   */
+  async _getQuiz(
+    { quizId }: { quizId: Quiz },
+  ): Promise<QuizDoc | null> {
+    return await this.quizzes.findOne({ _id: quizId });
+  }
+
+  /**
+   * Query: Retrieves all attempts for a specific quiz.
+   */
+  async _getQuizAttempts(
+    { quizId }: { quizId: Quiz },
+  ): Promise<QuizAttemptDoc[]> {
+    return await this.quizAttempts.find({ quizId }).toArray();
+  }
+
+  /**
+   * Query: Retrieves all attempts by a specific user.
+   */
+  async _getUserAttempts(
+    { userId }: { userId: User },
+  ): Promise<QuizAttemptDoc[]> {
+    return await this.quizAttempts.find({ userId }).toArray();
+  }
+}
+
+```
+
+## FocusTimer
+
+Specification:
