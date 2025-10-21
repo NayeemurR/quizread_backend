@@ -25,7 +25,7 @@ interface UserDoc {
  * @concept UserAuthentication
  * @purpose Authenticate users
  */
-export default class UserAuthenticationConcept {
+export default class UserAuthConcept {
   users: Collection<UserDoc>;
 
   constructor(private readonly db: Db) {

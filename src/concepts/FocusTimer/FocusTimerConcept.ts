@@ -1,7 +1,7 @@
 import { Collection, Db } from "mongodb";
 import { Empty, ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
-import { nowMs } from "../util/time.ts";
+import { nowMs } from "../../util/time.ts";
 
 // Collection prefix to ensure namespace separation
 const PREFIX = "FocusTimer" + ".";

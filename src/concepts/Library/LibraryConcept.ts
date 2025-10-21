@@ -1,6 +1,11 @@
 import { Collection, Db } from "mongodb";
 import { Empty, ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
+import {
+  deleteFile,
+  generateSignedUploadUrl,
+  verifyFileExists,
+} from "@utils/gcs.ts";
 
 // Collection prefix to ensure namespace separation
 const PREFIX = "Library" + ".";
@@ -36,6 +41,47 @@ export default class LibraryConcept {
   }
 
   /**
+   * Action: Prepares a file upload by generating a signed URL for Google Cloud Storage.
+   * @requires fileName must be non-empty
+   * @requires contentType must be application/pdf
+   * @effects Returns signed URL for direct upload to GCS
+   */
+  async prepareUpload(
+    {
+      ownerId,
+      fileName,
+      contentType = "application/pdf",
+    }: {
+      ownerId: User;
+      fileName: string;
+      contentType?: string;
+    },
+  ): Promise<
+    { signedUrl: string; publicUrl: string; fileName: string } | {
+      error: string;
+    }
+  > {
+    if (!fileName || fileName.trim().length === 0) {
+      return { error: "fileName cannot be empty" };
+    }
+
+    const result = await generateSignedUploadUrl(
+      fileName,
+      contentType,
+      ownerId,
+    );
+    if ("error" in result) {
+      return result;
+    }
+
+    return {
+      signedUrl: result.signedUrl,
+      publicUrl: result.publicUrl,
+      fileName: result.fileName,
+    };
+  }
+
+  /**
    * Action: Adds a new book to the user's library.
    * @requires title must be non-empty
    * @requires totalPages > 0
@@ -48,11 +94,13 @@ export default class LibraryConcept {
       title,
       totalPages,
       storageUrl,
+      fileName,
     }: {
       ownerId: User;
       title: string;
       totalPages: number;
       storageUrl: string;
+      fileName?: string; // Optional: for verification
     },
   ): Promise<{ bookId: LibraryBook } | { error: string }> {
     if (!title || title.trim().length === 0) {
@@ -63,6 +111,16 @@ export default class LibraryConcept {
     }
     if (!storageUrl || storageUrl.trim().length === 0) {
       return { error: "storageUrl cannot be empty" };
+    }
+
+    // Verify the file exists in Google Cloud Storage if fileName is provided
+    if (fileName) {
+      const fileExists = await verifyFileExists(fileName);
+      if (!fileExists) {
+        return {
+          error: "File not found in storage. Please upload the file first.",
+        };
+      }
     }
 
     const bookId = freshID() as LibraryBook;
@@ -106,7 +164,7 @@ export default class LibraryConcept {
   /**
    * Action: Removes a book from the user's library.
    * @requires Book must exist and ownerId must match
-   * @effects Deletes the book
+   * @effects Deletes the book and its associated file from GCS
    */
   async removeBook(
     { ownerId, bookId }: { ownerId: User; bookId: LibraryBook },
@@ -119,7 +177,41 @@ export default class LibraryConcept {
       return { error: "Book does not belong to user" };
     }
 
+    // Extract fileName from storageUrl for GCS deletion
+    const storageUrl = book.storageUrl;
+    const fileName = storageUrl.split("/").slice(-2).join("/"); // Get books/userId/filename part
+
+    // Delete from MongoDB first
     await this.books.deleteOne({ _id: bookId });
+
+    // Delete from Google Cloud Storage (don't fail if this fails)
+    try {
+      await deleteFile(fileName);
+    } catch (error) {
+      console.warn(`Failed to delete file ${fileName} from GCS:`, error);
+      // Don't return error since the book is already removed from MongoDB
+    }
+
+    return {};
+  }
+
+  /**
+   * Action: Cleans up a failed upload by deleting the file from Google Cloud Storage.
+   * @requires fileName must be non-empty
+   * @effects Deletes the file from GCS
+   */
+  async cleanupFailedUpload(
+    { fileName }: { fileName: string },
+  ): Promise<Empty | { error: string }> {
+    if (!fileName || fileName.trim().length === 0) {
+      return { error: "fileName cannot be empty" };
+    }
+
+    const result = await deleteFile(fileName);
+    if (!result.success) {
+      return { error: result.error || "Failed to delete file" };
+    }
+
     return {};
   }
 
