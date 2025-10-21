@@ -4,6 +4,7 @@ import { freshID } from "@utils/database.ts";
 import {
   deleteFile,
   generateSignedUploadUrl,
+  generateSignedViewUrl,
   verifyFileExists,
 } from "@utils/gcs.ts";
 
@@ -24,7 +25,6 @@ interface BookDoc {
   _id: LibraryBook;
   ownerId: User;
   title: string;
-  totalPages: number;
   storageUrl: string; // URL to Google Cloud storage where PDF is stored
   createdAt: Date;
 }
@@ -84,7 +84,6 @@ export default class LibraryConcept {
   /**
    * Action: Adds a new book to the user's library.
    * @requires title must be non-empty
-   * @requires totalPages > 0
    * @requires storageUrl must be non-empty
    * @effects Inserts a book with link to Google Cloud storage
    */
@@ -92,22 +91,17 @@ export default class LibraryConcept {
     {
       ownerId,
       title,
-      totalPages,
       storageUrl,
       fileName,
     }: {
       ownerId: User;
       title: string;
-      totalPages: number;
       storageUrl: string;
       fileName?: string; // Optional: for verification
     },
   ): Promise<{ bookId: LibraryBook } | { error: string }> {
     if (!title || title.trim().length === 0) {
       return { error: "title cannot be empty" };
-    }
-    if (totalPages <= 0) {
-      return { error: "totalPages must be greater than 0" };
     }
     if (!storageUrl || storageUrl.trim().length === 0) {
       return { error: "storageUrl cannot be empty" };
@@ -128,7 +122,6 @@ export default class LibraryConcept {
       _id: bookId,
       ownerId,
       title,
-      totalPages,
       storageUrl,
       createdAt: new Date(),
     });
@@ -213,6 +206,40 @@ export default class LibraryConcept {
     }
 
     return {};
+  }
+
+  /**
+   * Action: Generates a signed URL for viewing a book's PDF.
+   * @requires bookId must exist and belong to ownerId
+   * @effects Returns a signed URL for secure PDF access
+   */
+  async getViewUrl(
+    { ownerId, bookId, expiresInMinutes = 60 }: {
+      ownerId: User;
+      bookId: LibraryBook;
+      expiresInMinutes?: number;
+    },
+  ): Promise<{ viewUrl: string } | { error: string }> {
+    // Verify the book exists and belongs to the user
+    const book = await this.books.findOne({ _id: bookId });
+    if (!book) {
+      return { error: "Book not found" };
+    }
+    if (book.ownerId !== ownerId) {
+      return { error: "Book does not belong to user" };
+    }
+
+    // Extract fileName from storageUrl
+    const storageUrl = book.storageUrl;
+    const fileName = storageUrl.split("/").slice(-2).join("/"); // Get books/userId/filename part
+
+    // Generate signed URL for viewing
+    const result = await generateSignedViewUrl(fileName, expiresInMinutes);
+    if ("error" in result) {
+      return result;
+    }
+
+    return { viewUrl: result.signedUrl };
   }
 
   /**

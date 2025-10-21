@@ -101,6 +101,31 @@ export async function deleteFile(
 }
 
 /**
+ * Generates a signed URL for viewing/downloading a file from Google Cloud Storage
+ */
+export async function generateSignedViewUrl(
+  fileName: string,
+  expiresInMinutes: number = 60,
+): Promise<{ signedUrl: string } | { error: string }> {
+  try {
+    const bucket = storage.bucket(BUCKET_NAME);
+    const file = bucket.file(fileName);
+
+    // Generate signed URL for viewing/downloading
+    const [signedUrl] = await file.getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: Date.now() + expiresInMinutes * 60 * 1000,
+    });
+
+    return { signedUrl };
+  } catch (error) {
+    console.error("Error generating signed view URL:", error);
+    return { error: "Failed to generate view URL" };
+  }
+}
+
+/**
  * Gets file metadata from Google Cloud Storage
  */
 export async function getFileMetadata(fileName: string) {

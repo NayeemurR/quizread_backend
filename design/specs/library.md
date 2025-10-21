@@ -9,13 +9,12 @@ state
     an _id Id
     an ownerId Id
     a title String
-    a totalPages Number
     a storageUrl String  // URL to Google Cloud storage where PDF is stored
     a createdAt DateTime
 
 actions
-  addBook (ownerId: Id, title: String, totalPages: Number, storageUrl: String) : (bookId: Id)
-    requires title non-empty; totalPages > 0; storageUrl non-empty
+  addBook (ownerId: Id, title: String, storageUrl: String) : (bookId: Id)
+    requires title non-empty; storageUrl non-empty
     effect inserts a book with link to Google Cloud storage
 
   getBook (bookId: Id) : (exists: Boolean)

@@ -16,3 +16,8 @@ I decided to not implement the promptAnnotation action. This is because I feel a
 
 I listened to the feedback given on my assignment 2 and drastically reduced the complexity of the timer. I was told that FocusTimer is a good general concept, but the actual implementation was way too app-specific. All a timer needs to know is the start time and countdown. It doesn't need to know the user, the book, or the pages. That stuff can be taken care of in a sync.
 
+### Library
+
+I added a prepareUpload action to the Library concept. This is because I need to generate a signed URL to upload the book to Google Cloud Storage. I also added a cleanupFailedUpload action to the Library concept. This is because if the upload fails, I need to delete the file from Google Cloud Storage.
+
+Removed the totalPages field from the Library concept. This is because I don't need to know the total pages of the book to add it to the library. I only need to know the storage URL to add it to the library.
