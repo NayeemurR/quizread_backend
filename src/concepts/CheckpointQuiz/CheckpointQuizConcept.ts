@@ -250,9 +250,9 @@ Content: ${sanitizedContent}`;
       }
 
       // Limit content length to prevent LLM token limits
-      const content = result.text.slice(0, 2000);
+      // const content = result.text.slice(0, 2000);
 
-      return { content };
+      return { content: result.text };
     } catch (error) {
       console.error("Error getting quiz context:", error);
       const errorMessage = error instanceof Error
