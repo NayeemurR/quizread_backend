@@ -16,6 +16,8 @@ I changed what gets returned from the createQuiz action. Instead of returning th
 
 I decided to not implement the promptAnnotation action. This is because I feel as if this is a more frontend related action that can be handled with a sync. Since this assignment is for the backend, I decided to not implement it.
 
+I added a bookId field to the Annotate concept. This is because I need to know the bookId to get the annotations for a specific book.
+
 ### FocusTimer
 
 I listened to the feedback given on my assignment 2 and drastically reduced the complexity of the timer. I was told that FocusTimer is a good general concept, but the actual implementation was way too app-specific. All a timer needs to know is the start time and countdown. It doesn't need to know the user, the book, or the pages. That stuff can be taken care of in a sync.

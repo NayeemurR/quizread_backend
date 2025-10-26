@@ -1,10 +1,12 @@
 import { assertEquals, assertExists, assertNotEquals } from "jsr:@std/assert";
 import { testDb } from "@utils/database.ts";
 import { ID } from "@utils/types.ts";
-import AnnotateConcept from "@concepts/annotate.ts";
+import AnnotateConcept from "@concepts/Annotate/AnnotateConcept.ts";
 
 const userA = "user:Alice" as ID;
 const userB = "user:Bob" as ID;
+const bookA = "book:SampleBook" as ID;
+const bookB = "book:AnotherBook" as ID;
 
 Deno.test("Principle: User saves annotation with key ideas, system persists and retrieves it", async () => {
   const [db, client] = await testDb();
@@ -21,6 +23,7 @@ Deno.test("Principle: User saves annotation with key ideas, system persists and 
 
     const saveResult = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content,
       keyIdeas,
     });
@@ -62,6 +65,7 @@ Deno.test("Action: saveAnnotation requires non-empty keyIdeas", async () => {
 
     const emptyResult = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content: "Some content",
       keyIdeas: "",
     });
@@ -74,6 +78,7 @@ Deno.test("Action: saveAnnotation requires non-empty keyIdeas", async () => {
 
     const whitespaceResult = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content: "Some content",
       keyIdeas: "   ",
     });
@@ -102,6 +107,7 @@ Deno.test("Action: saveAnnotation allows multiple annotations for same content",
     // Save first annotation
     const result1 = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content,
       keyIdeas: keyIdeas1,
     });
@@ -119,6 +125,7 @@ Deno.test("Action: saveAnnotation allows multiple annotations for same content",
     // Save second annotation
     const result2 = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content,
       keyIdeas: keyIdeas2,
     });
@@ -162,6 +169,7 @@ Deno.test("Action: saveAnnotation isolates annotations by user", async () => {
     // Save annotation for userA
     const resultA = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content,
       keyIdeas: keyIdeasA,
     });
@@ -176,6 +184,7 @@ Deno.test("Action: saveAnnotation isolates annotations by user", async () => {
     // Save annotation for userB
     const resultB = await annotateConcept.saveAnnotation({
       userId: userB,
+      bookId: bookA,
       content,
       keyIdeas: keyIdeasB,
     });
@@ -232,6 +241,7 @@ Deno.test("Query: _getAllUserAnnotations retrieves all annotations by user", asy
     // Save annotations for different content
     const result1 = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content: content1,
       keyIdeas: keyIdeas1,
     });
@@ -239,6 +249,7 @@ Deno.test("Query: _getAllUserAnnotations retrieves all annotations by user", asy
 
     const result2 = await annotateConcept.saveAnnotation({
       userId: userA,
+      bookId: bookA,
       content: content2,
       keyIdeas: keyIdeas2,
     });
@@ -256,6 +267,169 @@ Deno.test("Query: _getAllUserAnnotations retrieves all annotations by user", asy
     assertEquals(allAnnotations[0]._id, id2); // Newer first due to sort
     assertEquals(allAnnotations[1]._id, id1);
     console.log("[VARIANT] All user annotations retrieved correctly");
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: getAnnotationsForBook retrieves annotations for specific user and book", async () => {
+  const [db, client] = await testDb();
+  const annotateConcept = new AnnotateConcept(db);
+
+  try {
+    console.log("[VARIANT] Testing getAnnotationsForBook action");
+
+    const content1 = "First content in book A";
+    const content2 = "Second content in book A";
+    const content3 = "Content in book B";
+    const keyIdeas1 = "Key ideas for first content in book A";
+    const keyIdeas2 = "Key ideas for second content in book A";
+    const keyIdeas3 = "Key ideas for content in book B";
+
+    // Save annotations for bookA
+    const result1 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      bookId: bookA,
+      content: content1,
+      keyIdeas: keyIdeas1,
+    });
+    const { annotationId: id1 } = result1 as { annotationId: ID };
+
+    const result2 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      bookId: bookA,
+      content: content2,
+      keyIdeas: keyIdeas2,
+    });
+    const { annotationId: id2 } = result2 as { annotationId: ID };
+
+    // Save annotation for bookB
+    const result3 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      bookId: bookB,
+      content: content3,
+      keyIdeas: keyIdeas3,
+    });
+    const { annotationId: id3 } = result3 as { annotationId: ID };
+
+    // Get annotations for bookA
+    const bookAAnnotations = await annotateConcept.getAnnotationsForBook({
+      userId: userA,
+      bookId: bookA,
+    });
+    assertEquals(
+      bookAAnnotations.length,
+      2,
+      "UserA should have two annotations for bookA.",
+    );
+    assertEquals(bookAAnnotations[0]._id, id2); // Newer first due to sort
+    assertEquals(bookAAnnotations[1]._id, id1);
+    assertEquals(bookAAnnotations[0].bookId, bookA);
+    assertEquals(bookAAnnotations[1].bookId, bookA);
+
+    // Get annotations for bookB
+    const bookBAnnotations = await annotateConcept.getAnnotationsForBook({
+      userId: userA,
+      bookId: bookB,
+    });
+    assertEquals(
+      bookBAnnotations.length,
+      1,
+      "UserA should have one annotation for bookB.",
+    );
+    assertEquals(bookBAnnotations[0]._id, id3);
+    assertEquals(bookBAnnotations[0].bookId, bookB);
+
+    console.log(
+      "[VARIANT] getAnnotationsForBook retrieved correct annotations",
+    );
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: getAnnotationsForBook isolates annotations by user and book", async () => {
+  const [db, client] = await testDb();
+  const annotateConcept = new AnnotateConcept(db);
+
+  try {
+    console.log(
+      "[VARIANT] Testing user and book isolation in getAnnotationsForBook",
+    );
+
+    const content = "Shared content between users and books";
+    const keyIdeasA1 = "Alice's key ideas for book A";
+    const keyIdeasA2 = "Alice's key ideas for book B";
+    const keyIdeasB1 = "Bob's key ideas for book A";
+
+    // Save annotations for different user/book combinations
+    const resultA1 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      bookId: bookA,
+      content,
+      keyIdeas: keyIdeasA1,
+    });
+    const { annotationId: idA1 } = resultA1 as { annotationId: ID };
+
+    const resultA2 = await annotateConcept.saveAnnotation({
+      userId: userA,
+      bookId: bookB,
+      content,
+      keyIdeas: keyIdeasA2,
+    });
+    const { annotationId: idA2 } = resultA2 as { annotationId: ID };
+
+    const resultB1 = await annotateConcept.saveAnnotation({
+      userId: userB,
+      bookId: bookA,
+      content,
+      keyIdeas: keyIdeasB1,
+    });
+    const { annotationId: idB1 } = resultB1 as { annotationId: ID };
+
+    // Verify isolation - userA should only see their annotations for bookA
+    const userABookAAnnotations = await annotateConcept.getAnnotationsForBook({
+      userId: userA,
+      bookId: bookA,
+    });
+    assertEquals(
+      userABookAAnnotations.length,
+      1,
+      "UserA should have one annotation for bookA.",
+    );
+    assertEquals(userABookAAnnotations[0]._id, idA1);
+    assertEquals(userABookAAnnotations[0].userId, userA);
+    assertEquals(userABookAAnnotations[0].bookId, bookA);
+
+    // Verify isolation - userA should only see their annotations for bookB
+    const userABookBAnnotations = await annotateConcept.getAnnotationsForBook({
+      userId: userA,
+      bookId: bookB,
+    });
+    assertEquals(
+      userABookBAnnotations.length,
+      1,
+      "UserA should have one annotation for bookB.",
+    );
+    assertEquals(userABookBAnnotations[0]._id, idA2);
+    assertEquals(userABookBAnnotations[0].userId, userA);
+    assertEquals(userABookBAnnotations[0].bookId, bookB);
+
+    // Verify isolation - userB should only see their annotations for bookA
+    const userBBookAAnnotations = await annotateConcept.getAnnotationsForBook({
+      userId: userB,
+      bookId: bookA,
+    });
+    assertEquals(
+      userBBookAAnnotations.length,
+      1,
+      "UserB should have one annotation for bookA.",
+    );
+    assertEquals(userBBookAAnnotations[0]._id, idB1);
+    assertEquals(userBBookAAnnotations[0].userId, userB);
+    assertEquals(userBBookAAnnotations[0].bookId, bookA);
+
+    console.log("[VARIANT] User and book isolation verified correctly");
   } finally {
     await client.close();
   }
