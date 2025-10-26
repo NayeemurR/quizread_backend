@@ -100,6 +100,9 @@ export default class LibraryConcept {
       fileName?: string; // Optional: for verification
     },
   ): Promise<{ bookId: LibraryBook } | { error: string }> {
+    if (!ownerId || ownerId.trim().length === 0) {
+      return { error: "ownerId cannot be empty" };
+    }
     if (!title || title.trim().length === 0) {
       return { error: "title cannot be empty" };
     }
