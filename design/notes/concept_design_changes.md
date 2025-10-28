@@ -22,6 +22,8 @@ I added a bookId field to the Annotate concept. This is because I need to know t
 
 I listened to the feedback given on my assignment 2 and drastically reduced the complexity of the timer. I was told that FocusTimer is a good general concept, but the actual implementation was way too app-specific. All a timer needs to know is the start time and countdown. It doesn't need to know the user, the book, or the pages. That stuff can be taken care of in a sync.
 
+I decided to force the reading sessions to be 25 minutes long and the break sessions to be 5 minutes long instead of letting the user set the duration. This is because I want to keep the focus timer simple and consistent with research on focus and productivity.
+
 ### Library
 
 I added a prepareUpload action to the Library concept. This is because I need to generate a signed URL to upload the book to Google Cloud Storage. I also added a cleanupFailedUpload action to the Library concept. This is because if the upload fails, I need to delete the file from Google Cloud Storage.
