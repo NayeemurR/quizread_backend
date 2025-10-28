@@ -27,3 +27,7 @@ I listened to the feedback given on my assignment 2 and drastically reduced the 
 I added a prepareUpload action to the Library concept. This is because I need to generate a signed URL to upload the book to Google Cloud Storage. I also added a cleanupFailedUpload action to the Library concept. This is because if the upload fails, I need to delete the file from Google Cloud Storage.
 
 Removed the totalPages field from the Library concept. This is because I don't need to know the total pages of the book to add it to the library. I only need to know the storage URL to add it to the library.
+
+### ReadingProgress
+
+I added a bookId field to the ReadingProgress concept. This is because I need to know the bookId to get the reading progress for a specific book. I removed the content field from the ReadingProgress concept. This is because the bookId is enough to get the required content to generate the quiz and annotation.

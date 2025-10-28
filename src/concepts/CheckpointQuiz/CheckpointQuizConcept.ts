@@ -281,13 +281,6 @@ Content: ${sanitizedContent}`;
       pageRange?: number;
     },
   ): Promise<{ quiz: QuizDoc } | { error: string }> {
-    console.log(
-      "Creating quiz from PDF...",
-      userId,
-      bookId,
-      currentPage,
-      pageRange,
-    );
     // First, get the context from the PDF
     const contextResult = await this.getQuizContext({
       userId,
@@ -295,8 +288,6 @@ Content: ${sanitizedContent}`;
       currentPage,
       pageRange,
     });
-
-    console.log("Context result:", contextResult);
 
     if ("error" in contextResult) {
       return contextResult;
