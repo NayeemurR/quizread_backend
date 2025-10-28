@@ -16,7 +16,7 @@ I changed what gets returned from the createQuiz action. Instead of returning th
 
 I decided to not implement the promptAnnotation action. This is because I feel as if this is a more frontend related action that can be handled with a sync. Since this assignment is for the backend, I decided to not implement it.
 
-I added a bookId field to the Annotate concept. This is because I need to know the bookId to get the annotations for a specific book.
+I added a bookId field to the Annotate concept. This is because I need to know the bookId to get the annotations for a specific book and send it to the frontend.
 
 ### FocusTimer
 
@@ -26,7 +26,7 @@ I listened to the feedback given on my assignment 2 and drastically reduced the 
 
 I added a prepareUpload action to the Library concept. This is because I need to generate a signed URL to upload the book to Google Cloud Storage. I also added a cleanupFailedUpload action to the Library concept. This is because if the upload fails, I need to delete the file from Google Cloud Storage.
 
-Removed the totalPages field from the Library concept. This is because I don't need to know the total pages of the book to add it to the library. I only need to know the storage URL to add it to the library.
+I removed the totalPages field from the Library concept. This is because I don't need to know the total pages of the book to add it to the library. I only need to know the storage URL to add it to the library.
 
 ### ReadingProgress
 
