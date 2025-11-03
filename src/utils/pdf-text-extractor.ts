@@ -1,10 +1,5 @@
-import { Storage } from "npm:@google-cloud/storage@7.7.0";
+import { storage } from "@utils/gcs.ts";
 import pdf from "npm:pdf-parse@1.1.1";
-
-// Initialize Google Cloud Storage client
-const storage = new Storage({
-  // Credentials will be loaded from environment variables or service account key file
-});
 
 // pdf-parse doesn't need worker configuration
 

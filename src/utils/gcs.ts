@@ -1,10 +1,49 @@
 import { Storage } from "npm:@google-cloud/storage@7.7.0";
 
+/**
+ * Initialize Google Cloud Storage client with credentials.
+ * Supports multiple credential sources:
+ * 1. GOOGLE_APPLICATION_CREDENTIALS_JSON (for cloud platforms like Render.com) - JSON string
+ * 2. GOOGLE_APPLICATION_CREDENTIALS (for local development) - file path
+ * 3. Default credentials (if using gcloud auth)
+ */
+async function initializeStorage(): Promise<Storage> {
+  try {
+    const credentialsJson = Deno.env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON");
+    if (credentialsJson) {
+      // Parse the JSON string and use it as credentials (for Render.com and cloud platforms)
+      const credentials = JSON.parse(credentialsJson);
+      return new Storage({
+        credentials,
+      });
+    } else {
+      // Fallback to file path or default credentials
+      const credentialsPath = Deno.env.get("GOOGLE_APPLICATION_CREDENTIALS");
+      if (credentialsPath) {
+        const credentials = JSON.parse(
+          await Deno.readTextFile(credentialsPath),
+        );
+        return new Storage({
+          credentials,
+        });
+      } else {
+        // Use default credentials (for local development with gcloud auth)
+        return new Storage();
+      }
+    }
+  } catch (error) {
+    console.error("Error initializing GCS Storage client:", error);
+    throw new Error(
+      "Failed to initialize GCS Storage. Please set GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable with your service account JSON (for cloud) or GOOGLE_APPLICATION_CREDENTIALS for local development.",
+    );
+  }
+}
+
 // Initialize Google Cloud Storage client
-const storage = new Storage({
-  // Credentials will be loaded from environment variables or service account key file
-  // Set GOOGLE_APPLICATION_CREDENTIALS environment variable or use default credentials
-});
+const storage = await initializeStorage();
+
+// Export storage instance for use in other modules
+export { storage };
 
 // Configuration
 const BUCKET_NAME = Deno.env.get("GCS_BUCKET_NAME") || "quizread-books";
