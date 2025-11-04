@@ -174,6 +174,15 @@ export default class RequestingConcept {
       this.pending.delete(request);
     }
   }
+
+  /**
+   * Query: Retrieves a request document by its ID.
+   */
+  async _getRequest(
+    { request }: { request: Request },
+  ): Promise<RequestDoc | null> {
+    return await this.requests.findOne({ _id: request });
+  }
 }
 
 /**
@@ -284,6 +293,35 @@ export function startRequestingServer(
 
       // 3. Send the response back to the client.
       const { response } = responseArray[0];
+
+      // Special handling to match passthrough behavior:
+      // - If response is empty {}, return {} directly (for Empty responses)
+      // - For queries (routes with /_): unwrap single values to match direct returns
+      // - For actions: keep object format to match named return fields
+      const responseKeys = Object.keys(response);
+      const isQueryRoute = actionPath.includes("/_");
+
+      if (responseKeys.length === 0) {
+        // Empty response - return {} directly (matches Empty return type)
+        return c.json({});
+      }
+
+      if (responseKeys.length === 1) {
+        const value = response[responseKeys[0]];
+        if (Array.isArray(value)) {
+          // Single array value - return array directly (for queries like _getUserBooks)
+          return c.json(value);
+        }
+        // For query routes: unwrap single values (objects, primitives, null)
+        // For action routes: keep the wrapper (e.g., { exists: true } stays wrapped)
+        if (isQueryRoute) {
+          // Query routes return values directly (BookDoc | null, etc.)
+          return c.json(value);
+        }
+        // Action routes keep the wrapper format
+        // e.g., { exists: true }, { bookId: "..." }, { bookIds: [...] }
+      }
+
       return c.json(response);
     } catch (e) {
       if (e instanceof Error) {
